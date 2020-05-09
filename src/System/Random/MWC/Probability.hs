@@ -127,7 +127,7 @@ sample (Prob (ft)) g = iterT (\f -> f g) ft
 {-# INLINABLE sample #-}
 
 mkProb :: (PrimMonad m) => (Gen (PrimState m) -> m a) -> Prob m a
-mkProb f = Prob $ FT $ \ka kfr -> kfr (ka =<<) f 
+mkProb genf = Prob $ FT $ \ka kfr -> kfr (\f -> f >>= ka) genf 
 {-# INLINABLE mkProb #-}
 
 -- | Sample from a model 'n' times.
