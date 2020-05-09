@@ -99,7 +99,8 @@ import Control.Monad
 import Control.Monad.Primitive
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
-import Control.Monad.Trans.Free
+import Control.Monad.Trans.Free(FreeT(..), FreeF(..), runFreeT)
+import Control.Monad.Trans.Free.Church
 import Data.Monoid (Sum(..))
 #if __GLASGOW_HASKELL__ < 710
 import Data.Foldable (Foldable)
@@ -120,13 +121,13 @@ import System.Random.MWC.CondensedTable
 
 -- newtype Prob  m a = Prob  { sample  :: Gen (PrimState m) -> m a } deriving Functor
 -- newtype Prob  m a = Prob (ReaderT (Gen (PrimState m)) m a) deriving (Functor, Applicative, Monad)
-newtype Prob m a = Prob (FreeT ((->) (Gen (PrimState m))) m a) deriving (Functor, Applicative, Monad, MonadIO)
+newtype Prob m a = Prob (FT ((->) (Gen (PrimState m))) m a) deriving (Functor, Applicative, Monad, MonadIO)
 
 sample :: (PrimMonad m) => Prob m a -> Gen (PrimState m) -> m a
 sample (Prob (ft)) g = iterT (\f -> f g) ft
 
 mkProb :: (PrimMonad m) => (Gen (PrimState m) -> m a) -> Prob m a
-mkProb f     = Prob $ FreeT {runFreeT = oneLayer } where
+mkProb f     = Prob $ toFT $ FreeT {runFreeT = oneLayer } where
   oneLayer   = return $ Free $ (\gen -> freePure (f gen))
   freePure v = FreeT { runFreeT = Pure <$> v}
 
