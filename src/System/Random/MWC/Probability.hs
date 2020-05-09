@@ -57,7 +57,8 @@
 
 module System.Random.MWC.Probability (
     module MWC
-  , Prob(..)
+  , Prob
+  , sample
   , samples
 
   , uniform
