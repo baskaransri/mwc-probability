@@ -125,11 +125,13 @@ newtype Prob m a = Prob (FT ((->) (Gen (PrimState m))) m a) deriving (Functor, A
 
 sample :: (PrimMonad m) => Prob m a -> Gen (PrimState m) -> m a
 sample (Prob (ft)) g = iterT (\f -> f g) ft
+{-# INLINABLE sample #-}
 
 mkProb :: (PrimMonad m) => (Gen (PrimState m) -> m a) -> Prob m a
 mkProb f     = Prob $ toFT $ FreeT {runFreeT = oneLayer } where
   oneLayer   = return $ Free $ (\gen -> freePure (f gen))
   freePure v = FreeT { runFreeT = Pure <$> v}
+{-# INLINABLE mkProb #-}
 
 -- | Sample from a model 'n' times.
 --
