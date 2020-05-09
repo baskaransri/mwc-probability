@@ -58,6 +58,7 @@
 module System.Random.MWC.Probability (
     module MWC
   , Prob
+  , mkProb
   , sample
   , samples
 
