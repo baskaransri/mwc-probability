@@ -97,6 +97,7 @@ import Control.Monad
 import Control.Monad.Primitive
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
+import Control.Monad.Trans.Free
 import Data.Monoid (Sum(..))
 #if __GLASGOW_HASKELL__ < 710
 import Data.Foldable (Foldable)
@@ -114,7 +115,18 @@ import System.Random.MWC.CondensedTable
 -- >>> gen <- createSystemRandom
 -- >>> sample uniform gen
 -- 0.4208881170464097
-newtype Prob m a = Prob { sample :: Gen (PrimState m) -> m a }
+
+-- newtype Prob  m a = Prob  { sample  :: Gen (PrimState m) -> m a } deriving Functor
+-- newtype Prob  m a = Prob (ReaderT (Gen (PrimState m)) m a) deriving (Functor, Applicative, Monad)
+newtype Prob m a = Prob (FreeT ((->) (Gen (PrimState m))) m a) deriving (Functor, Applicative, Monad, MonadIO)
+
+sample :: (PrimMonad m) => Prob m a -> Gen (PrimState m) -> m a
+sample (Prob (ft)) g = iterT (\f -> f g) ft
+
+mkProb :: (PrimMonad m) => (Gen (PrimState m) -> m a) -> Prob m a
+mkProb f     = Prob $ FreeT {runFreeT = oneLayer } where
+  oneLayer   = return $ Free $ (\gen -> freePure (f gen))
+  freePure v = FreeT { runFreeT = Pure <$> v}
 
 -- | Sample from a model 'n' times.
 --
@@ -124,19 +136,6 @@ samples :: PrimMonad m => Int -> Prob m a -> Gen (PrimState m) -> m [a]
 samples n model gen = sequenceA (replicate n (sample model gen))
 {-# INLINABLE samples #-}
 
-instance Functor m => Functor (Prob m) where
-  fmap h (Prob f) = Prob (fmap h . f)
-
-instance Monad m => Applicative (Prob m) where
-  pure  = Prob . const . pure
-  (<*>) = ap
-
-instance Monad m => Monad (Prob m) where
-  return = pure
-  m >>= h = Prob $ \g -> do
-    z <- sample m g
-    sample (h z) g
-  {-# INLINABLE (>>=) #-}
 
 instance (Monad m, Num a) => Num (Prob m a) where
   (+)         = liftA2 (+)
@@ -146,17 +145,15 @@ instance (Monad m, Num a) => Num (Prob m a) where
   signum      = fmap signum
   fromInteger = pure . fromInteger
 
+{-
 instance MonadTrans Prob where
   lift m = Prob $ const m
-
-instance MonadIO m => MonadIO (Prob m) where
-  liftIO m = Prob $ const (liftIO m)
 
 instance PrimMonad m => PrimMonad (Prob m) where
   type PrimState (Prob m) = PrimState m
   primitive = lift . primitive
   {-# INLINE primitive #-}
-
+-}
 -- | The uniform distribution at a specified type.
 --
 --   Note that `Double` and `Float` variates are defined over the unit
@@ -167,7 +164,7 @@ instance PrimMonad m => PrimMonad (Prob m) where
 --   >>> sample uniform gen :: IO Bool
 --   False
 uniform :: (PrimMonad m, Variate a) => Prob m a
-uniform = Prob QMWC.uniform
+uniform = mkProb QMWC.uniform
 {-# INLINABLE uniform #-}
 
 -- | The uniform distribution over the provided interval.
@@ -175,7 +172,7 @@ uniform = Prob QMWC.uniform
 --   >>> sample (uniformR (0, 1)) gen
 --   0.44984153252922365
 uniformR :: (PrimMonad m, Variate a) => (a, a) -> Prob m a
-uniformR r = Prob $ QMWC.uniformR r
+uniformR r = mkProb $ QMWC.uniformR r
 {-# INLINABLE uniformR #-}
 
 -- | The discrete uniform distribution.
@@ -193,7 +190,7 @@ discreteUniform cs = do
 -- | The standard normal or Gaussian distribution with mean 0 and standard
 --   deviation 1.
 standardNormal :: PrimMonad m => Prob m Double
-standardNormal = Prob MWC.Dist.standard
+standardNormal = mkProb MWC.Dist.standard
 {-# INLINABLE standardNormal #-}
 
 -- | The normal or Gaussian distribution with specified mean and standard
@@ -201,7 +198,7 @@ standardNormal = Prob MWC.Dist.standard
 --
 --   Note that `sd` should be positive.
 normal :: PrimMonad m => Double -> Double -> Prob m Double
-normal m sd = Prob $ MWC.Dist.normal m sd
+normal m sd = mkProb $ MWC.Dist.normal m sd
 {-# INLINABLE normal #-}
 
 -- | The log-normal distribution with specified mean and standard deviation.
@@ -215,7 +212,7 @@ logNormal m sd = exp <$> normal m sd
 --
 --   Note that `r` should be positive.
 exponential :: PrimMonad m => Double -> Prob m Double
-exponential r = Prob $ MWC.Dist.exponential r
+exponential r = mkProb $ MWC.Dist.exponential r
 {-# INLINABLE exponential #-}
 
 -- | The Laplace or double-exponential distribution with provided location and
@@ -248,7 +245,7 @@ weibull a b = do
 --
 --   Note that both parameters should be positive.
 gamma :: PrimMonad m => Double -> Double -> Prob m Double
-gamma a b = Prob $ MWC.Dist.gamma a b
+gamma a b = mkProb $ MWC.Dist.gamma a b
 {-# INLINABLE gamma #-}
 
 -- | The inverse-gamma distribution with shape parameter `a` and scale
@@ -273,7 +270,7 @@ normalGamma mu lambda a b = do
 --
 --   Note that `k` should be positive.
 chiSquare :: PrimMonad m => Int -> Prob m Double
-chiSquare k = Prob $ MWC.Dist.chiSquare k
+chiSquare k = mkProb $ MWC.Dist.chiSquare k
 {-# INLINABLE chiSquare #-}
 
 -- | The beta distribution with the specified shape parameters.
@@ -411,7 +408,7 @@ inverseGaussian lambda mu = do
 --
 --   Note that `l` should be positive.
 poisson :: PrimMonad m => Double -> Prob m Int
-poisson l = Prob $ genFromTable table where
+poisson l = mkProb $ genFromTable table where
   table = tablePoisson l
 {-# INLINABLE poisson #-}
 
