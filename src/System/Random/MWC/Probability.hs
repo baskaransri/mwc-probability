@@ -127,10 +127,9 @@ sample :: (PrimMonad m) => Prob m a -> Gen (PrimState m) -> m a
 sample (Prob (ft)) g = iterT (\f -> f g) ft
 
 mkProb :: (PrimMonad m) => (Gen (PrimState m) -> m a) -> Prob m a
-mkProb f     = Prob $ toFT $ FreeT {runFreeT = oneLayer } where
-  oneLayer   = return $ Free $ (\gen -> freePure (f gen))
-  freePure v = FreeT { runFreeT = Pure <$> v}
+mkProb f = Prob $ FT $ \ka kfr -> kfr id (\gen -> (f gen) >>= ka)
 {-# INLINABLE mkProb #-}
+
 
 -- | Sample from a model 'n' times.
 --
