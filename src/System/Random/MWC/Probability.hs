@@ -124,7 +124,7 @@ import System.Random.MWC.CondensedTable
 newtype Prob m a = Prob (FT ((->) (Gen (PrimState m))) m a) deriving (Functor, Applicative, Monad, MonadIO)
 
 sample :: (PrimMonad m) => Prob m a -> Gen (PrimState m) -> m a
-sample (Prob (ft)) g = iterT (\f -> f $! g) ft
+sample (Prob (ft)) g = iterT (\f -> f g) ft
 
 mkProb :: (PrimMonad m) => (Gen (PrimState m) -> m a) -> Prob m a
 mkProb f     = Prob $ toFT $ FreeT {runFreeT = oneLayer } where
