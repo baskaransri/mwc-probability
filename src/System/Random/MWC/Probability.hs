@@ -99,6 +99,7 @@ import Control.Monad
 import Control.Monad.Primitive
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
+import Control.Monad.Trans.Free(FreeT(..), FreeF(..), runFreeT )
 import Control.Monad.Trans.Free.Church
 import Data.Monoid (Sum(..))
 #if __GLASGOW_HASKELL__ < 710
