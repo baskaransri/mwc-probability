@@ -121,13 +121,15 @@ import System.Random.MWC.CondensedTable
 
 -- newtype Prob  m a = Prob  { sample  :: Gen (PrimState m) -> m a } deriving Functor
 -- newtype Prob  m a = Prob (ReaderT (Gen (PrimState m)) m a) deriving (Functor, Applicative, Monad)
-newtype Prob m a = Prob (FT ((->) (Gen (PrimState m))) m a) deriving (Functor, Applicative, Monad, MonadIO)
+newtype ProbT m n a = ProbT (FT ((->) (Gen (PrimState m))) n a) deriving (Functor, Applicative, Monad, MonadIO)
+type Prob m a = ProbT m m a
 
 sample :: (PrimMonad m) => Prob m a -> Gen (PrimState m) -> m a
-sample (Prob (ft)) g = iterT (\f -> f g) ft
+sample (ProbT (ft)) g = iterT (\f -> f g) ft
+{-# INLINABLE sample #-}
 
 mkProb :: (PrimMonad m) => (Gen (PrimState m) -> m a) -> Prob m a
-mkProb f     = Prob $ toFT $ FreeT {runFreeT = oneLayer } where
+mkProb f     = ProbT $ toFT $ FreeT {runFreeT = oneLayer } where
   oneLayer   = return $ Free $ (\gen -> freePure (f gen))
   freePure v = FreeT { runFreeT = Pure <$> v}
 {-# INLINABLE mkProb #-}
@@ -141,7 +143,7 @@ samples n model gen = sequenceA (replicate n (sample model gen))
 {-# INLINABLE samples #-}
 
 
-instance (Monad m, Num a) => Num (Prob m a) where
+instance (Monad m, Num a) => Num (ProbT m n a) where
   (+)         = liftA2 (+)
   (-)         = liftA2 (-)
   (*)         = liftA2 (*)
