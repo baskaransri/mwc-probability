@@ -98,9 +98,9 @@ import Control.Applicative
 import Control.Monad
 import Control.Monad.Primitive
 import Control.Monad.IO.Class
-import Control.Monad.Trans.Class
-import Control.Monad.Trans.Free(FreeT(..), FreeF(..), runFreeT )
-import Control.Monad.Trans.Free.Church
+--import Control.Monad.Trans.Class
+import Control.Monad.Reader
+import Control.Monad.Morph(MFunctor, MMonad)
 import Data.Monoid (Sum(..))
 #if __GLASGOW_HASKELL__ < 710
 import Data.Foldable (Foldable)
@@ -121,17 +121,16 @@ import System.Random.MWC.CondensedTable
 
 -- newtype Prob  m a = Prob  { sample  :: Gen (PrimState m) -> m a } deriving Functor
 -- newtype Prob  m a = Prob (ReaderT (Gen (PrimState m)) m a) deriving (Functor, Applicative, Monad)
-newtype ProbT m n a = ProbT (FT ((->) (Gen (PrimState m))) n a) deriving (Functor, Applicative, Monad, MonadIO)
+-- newtype ProbT m n a = ProbT (FT ((->) (Gen (PrimState m))) n a) deriving (Functor, Applicative, Monad, MonadIO)
+newtype ProbT m n a = ProbT (ReaderT (Gen (PrimState m)) n a) deriving (Functor, Applicative, Monad, MonadIO, MonadTrans, MFunctor, MMonad)
 type Prob m a = ProbT m m a
 
 sample :: (PrimMonad m) => Prob m a -> Gen (PrimState m) -> m a
-sample (ProbT (ft)) g = iterT (\f -> f g) ft
+sample (ProbT r) = runReaderT r
 {-# INLINABLE sample #-}
 
 mkProb :: (PrimMonad m) => (Gen (PrimState m) -> m a) -> Prob m a
-mkProb f     = ProbT $ toFT $ FreeT {runFreeT = oneLayer } where
-  oneLayer   = return $ Free $ (\gen -> freePure (f gen))
-  freePure v = FreeT { runFreeT = Pure <$> v}
+mkProb f = ProbT $ ReaderT f
 {-# INLINABLE mkProb #-}
 
 -- | Sample from a model 'n' times.
@@ -143,7 +142,7 @@ samples n model gen = sequenceA (replicate n (sample model gen))
 {-# INLINABLE samples #-}
 
 
-instance (Monad m, Num a) => Num (ProbT m n a) where
+instance (Monad m, Monad n, Num a) => Num (ProbT m n a) where
   (+)         = liftA2 (+)
   (-)         = liftA2 (-)
   (*)         = liftA2 (*)
@@ -154,9 +153,10 @@ instance (Monad m, Num a) => Num (ProbT m n a) where
 {-
 instance MonadTrans Prob where
   lift m = Prob $ const m
-
-instance PrimMonad m => PrimMonad (Prob m) where
-  type PrimState (Prob m) = PrimState m
+-}
+{-
+instance (PrimMonad m, Monad n) => PrimMonad (ProbT m n) where
+  type PrimState (ProbT m n) = PrimState m
   primitive = lift . primitive
   {-# INLINE primitive #-}
 -}
