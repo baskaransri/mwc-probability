@@ -125,7 +125,7 @@ import System.Random.MWC.CondensedTable
 newtype ProbT m n a = ProbT (ReaderT (Gen (PrimState m)) n a) deriving (Functor, Applicative, Monad, MonadIO, MonadTrans, MFunctor, MMonad)
 type Prob m a = ProbT m m a
 
-sample :: (PrimMonad m) => Prob m a -> Gen (PrimState m) -> m a
+sample :: (PrimMonad m) => ProbT m n a -> Gen (PrimState m) -> n a
 sample (ProbT r) = runReaderT r
 {-# INLINABLE sample #-}
 
@@ -137,8 +137,8 @@ mkProb f = ProbT $ ReaderT f
 --
 -- >>> samples 2 uniform gen
 -- [0.6738707766845254,0.9730405951541817]
-samples :: PrimMonad m => Int -> Prob m a -> Gen (PrimState m) -> m [a]
-samples n model gen = sequenceA (replicate n (sample model gen))
+samples :: (PrimMonad m, Applicative n) => Int -> ProbT m n a -> Gen (PrimState m) -> n [a]
+samples k model gen = sequenceA (replicate k (sample model gen))
 {-# INLINABLE samples #-}
 
 
